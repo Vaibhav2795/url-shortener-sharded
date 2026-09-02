@@ -9,14 +9,6 @@ import hashlib
 from db import Base, engines, get_db
 from redis_client import client
 
-# 1. In-memory data structures
-# A dictionary to map unique short codes to original long URLs
-url_map = {}
-# A simple counter to generate unique, sequential database-like IDs
-current_id = 100000  # Starting high gives you a cleaner, multi-character base62 code right away
-
-# 2. Pydantic schema for the POST request body
-
 class URLMapping(Base):
     __tablename__ = "url_mappings"
 
@@ -37,7 +29,6 @@ app = FastAPI()
 class URLShortenRequest(BaseModel):
     url: str
 
-# 3. Base62 Encoder
 def encode_base62(num: int) -> str:
     """Converts an integer to a Base62 string."""
     BASE62_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -70,12 +61,14 @@ def generate_short_code_shake(text: str, length: int=8) -> str:
 def get_shard_index(hash_int: int, num_shards: int = 2) -> int:
     return hash_int % num_shards
 
-# 4. Health Check
+@app.get("/")
+def read_root():
+    return RedirectResponse(url="/docs")
+
 @app.get("/ping")
 def root():
     return {"health": "Healthy"}
 
-# 5. POST Endpoint: Create short URL
 @app.post("/shorten")
 def shorten(payload: URLShortenRequest, request: Request):
     hash = generate_short_code_shake(payload.url, 8)
