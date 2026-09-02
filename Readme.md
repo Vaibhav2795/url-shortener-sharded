@@ -1,5 +1,8 @@
 # URL Shortener with Sharding
 
+🔗 **Live demo:** [url-shortener-sharded.onrender.com](https://url-shortener-sharded.onrender.com)
+*(hosted on Render's free tier — the first request after a period of inactivity may take 30-60 seconds while the instance wakes up)*
+
 A URL shortener (like bit.ly) built as a hands-on system design project — the interesting part
 isn't the shortening itself, it's the infrastructure underneath: **database sharding**, a
 **Redis cache-aside layer**, and the tradeoffs that come with both.
