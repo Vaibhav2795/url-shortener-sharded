@@ -1,23 +1,13 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import Column, BigInteger, String, DateTime
 from sqlalchemy.orm import Session
-import datetime
 
 from db import Base, engines, get_db
 from encoding import generate_short_code_shake, encode_base62
 from redis_client import client
 from sharding import get_shard
-
-class URLMapping(Base):
-    __tablename__ = "url_mappings"
-    
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
-    short_code = Column(String, unique=True, index=True, nullable=True)
-    long_url = Column(String, nullable=True)
-
+from models import URLMapping
 
 for engine in engines.values():
     Base.metadata.create_all(bind=engine)
