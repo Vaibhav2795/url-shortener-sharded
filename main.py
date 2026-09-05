@@ -4,62 +4,28 @@ from pydantic import BaseModel
 from sqlalchemy import Column, BigInteger, String, DateTime
 from sqlalchemy.orm import Session
 import datetime
-import hashlib
 
 from db import Base, engines, get_db
+from encoding import generate_short_code_shake, encode_base62
 from redis_client import client
+from sharding import get_shard
 
 class URLMapping(Base):
     __tablename__ = "url_mappings"
-
-    # BigInteger maps to your native Postgres 'bigint' type
+    
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     short_code = Column(String, unique=True, index=True, nullable=True)
     long_url = Column(String, nullable=True)
 
 
-# Instruct SQLAlchemy to automatically ensure your table structure is present on startup
 for engine in engines.values():
     Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-
 class URLShortenRequest(BaseModel):
     url: str
-
-def encode_base62(num: int) -> str:
-    """Converts an integer to a Base62 string."""
-    BASE62_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    if num == 0:
-        return BASE62_ALPHABET[0]
-    
-    arr = []
-    while num > 0:
-        num, rem = divmod(num, 62)
-        arr.append(BASE62_ALPHABET[rem])
-    
-    # Reverse array because the remainders are calculated from least to most significant
-    return "".join(reversed(arr))
-
-def decode_base62(code: str) -> int:
-    BASE62_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    total = 0
-    for char in code:
-        total = total * 62 + BASE62_ALPHABET.index(char)
-    return total
-
-def generate_short_code_shake(text: str, length: int=8) -> str:
-    """
-        shake_256 requires the digest length in bytes
-        1 byte = 2 hex characters, so divide desired string length by 2
-    """
-    byte_length = max(1, length // 2)
-    return hashlib.shake_256(text.encode('utf-8')).hexdigest(byte_length)
-
-def get_shard_index(hash_int: int, num_shards: int = 2) -> int:
-    return hash_int % num_shards
 
 @app.get("/")
 def read_root():
@@ -76,10 +42,14 @@ def shorten(payload: URLShortenRequest, request: Request):
     unique_code = encode_base62(hash_int)
     redis_cache_string = f"code:{unique_code}"
 
-    shard_index = get_shard_index(hash_int)
+    cached_url = client.get(redis_cache_string)
 
-    if client.get(redis_cache_string) is None:
-        db_gen = get_db(shard_index)
+    if cached_url is not None:
+        if cached_url != payload.url:
+            raise HTTPException(status_code=409, detail="This code is take")
+    else:
+        shard_id = get_shard(unique_code)
+        db_gen = get_db(shard_id)
         db: Session = next(db_gen)
         db_mapping = db.query(URLMapping).filter(URLMapping.short_code == unique_code).first()
 
@@ -94,8 +64,6 @@ def shorten(payload: URLShortenRequest, request: Request):
         db_gen.close()
 
     full_short_url = f"{str(request.base_url)}{unique_code}"
-
-    # Return the short code to the client
     return {"id": unique_code, "long_url": payload.url, "link": full_short_url}
 
 
@@ -105,10 +73,9 @@ def get_code(code: str):
     long_url = client.get(redis_cache_string)
 
     if long_url is None:
-        hash_int = decode_base62(code)
-        shard_index = get_shard_index(hash_int)
+        shard_id = get_shard(code)
 
-        db_gen = get_db(shard_index)
+        db_gen = get_db(shard_id)
         db: Session = next(db_gen)
         db_mapping = db.query(URLMapping).filter(URLMapping.short_code == code).first()
 

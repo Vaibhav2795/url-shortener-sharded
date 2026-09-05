@@ -8,18 +8,20 @@ load_dotenv()
 
 SHARD_0_DATABASE_URL = os.getenv("SHARD_0_DATABASE_URL")
 SHARD_1_DATABASE_URL = os.getenv("SHARD_1_DATABASE_URL")
+SHARD_2_DATABASE_URL = os.getenv("SHARD_2_DATABASE_URL")
 
-print(SHARD_0_DATABASE_URL, SHARD_1_DATABASE_URL)
 # 2. Instantiate your foundational SQLAlchemy engine configuration
 engine_shard_0 = create_engine(SHARD_0_DATABASE_URL)
 engine_shard_1 = create_engine(SHARD_1_DATABASE_URL)
+engine_shard_2 = create_engine(SHARD_2_DATABASE_URL)
 
-engines = {0: engine_shard_0, 1: engine_shard_1}
+engines = {0: engine_shard_0, 1: engine_shard_1, 2: engine_shard_2}
 
 # 3. Create isolated database session objects
 session_local_0 = sessionmaker(autocommit=False, autoflush=False, bind=engine_shard_0)
 session_local_1 = sessionmaker(autocommit=False, autoflush=False, bind=engine_shard_1)
-SessionLocal = {0: session_local_0, 1: session_local_1}
+session_local_2 = sessionmaker(autocommit=False, autoflush=False, bind=engine_shard_2)
+SessionLocal = {0: session_local_0, 1: session_local_1, 2: session_local_2}
 
 # 4. Construct the standard declarative base for data mapping
 Base = declarative_base()
