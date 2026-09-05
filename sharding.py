@@ -4,7 +4,7 @@ from db import engines
 
 def stable_hash(key: str) -> int:
     digest = hashlib.shake_256(key.encode('utf-8')).hexdigest(8);
-    return digest
+    return int(digest, 16)
 
 ring = []
 def add_shard(shard_id, num_virtual_nodes = 100):
